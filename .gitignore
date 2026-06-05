@@ -1,0 +1,29 @@
+# Generated AMD/Xilinx build output
+build/
+logs/
+.Xil/
+*.jou
+*.log
+*.str
+dfx_runtime.txt
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local virtual environments
+.venv/
+venv/
+env/
+
+# Course-provided PDFs and scratch/scaffold files are intentionally not published
+/ECEN529_*.pdf
+matrix_vector_mult_maxi.cpp
+matrix_vector_mult_maxi1.ipynb
+spmv.h
+spmv_best.cpp
+spmv_op*.cpp
+
+# Superseded code-heavy draft report
+reports/ECEN529_Lab4_completed.pdf
