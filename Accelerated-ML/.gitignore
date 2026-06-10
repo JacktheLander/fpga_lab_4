@@ -1,0 +1,9 @@
+build/
+artifacts/
+reports/*.log
+reports/hls_summary.csv
+*.jou
+*.log
+*.str
+*.zip
+__pycache__/
