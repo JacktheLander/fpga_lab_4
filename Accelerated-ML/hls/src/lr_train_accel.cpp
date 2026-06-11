@@ -37,30 +37,34 @@ void lr_train_accel(
     float w_local[LR_MAX_FEATURES];
     float gradients[LR_MAX_FEATURES];
 #pragma HLS ARRAY_PARTITION variable=w_local complete dim=1
+#pragma HLS ARRAY_PARTITION variable=y_local cyclic factor=6 dim=1
 #pragma HLS ARRAY_PARTITION variable=gradients cyclic factor=6 dim=1
+
+    if (n_samples <= 0 || n_features <= 0) {
+    ZERO_INVALID_WEIGHTS:
+        for (int j = 0; j < LR_MAX_FEATURES; ++j) {
+#pragma HLS PIPELINE II=1
+            weights[j] = 0.0f;
+        }
+        return;
+    }
 
     int samples = n_samples;
     int features = n_features;
     int iterations = n_iterations;
-    if (samples < 1) {
-        samples = 1;
-    }
     if (samples > LR_MAX_SAMPLES) {
         samples = LR_MAX_SAMPLES;
-    }
-    if (features < 1) {
-        features = 1;
     }
     if (features > LR_MAX_FEATURES) {
         features = LR_MAX_FEATURES;
     }
-    if (iterations < 1) {
-        iterations = 1;
+    if (iterations < 0) {
+        iterations = 0;
     }
     if (iterations > LR_MAX_ITERS) {
         iterations = LR_MAX_ITERS;
     }
-    const float step_scale = learning_rate / static_cast<float>(samples);
+    const float step_scale = (samples > 0) ? (learning_rate / static_cast<float>(samples)) : 0.0f;
 
 LOAD_X_ROWS:
     for (int i = 0; i < LR_MAX_SAMPLES; ++i) {

@@ -6,7 +6,7 @@ The implementation follows the handout constraints:
 
 - Machine-learning algorithm: logistic regression training by gradient descent.
 - Hardware interface: AXI4-Burst memory transfers for `X`, `y`, and `weights`.
-- Verification: Vitis HLS C simulation testbench checks the accelerator against a software reference.
+- Verification: Vitis HLS C simulation testbench checks the accelerator against both true-sigmoid and hardware-compatible approximate software references.
 - System integration: Vivado block-design Tcl integrates the HLS IP with the Zynq Processing System.
 - Deployment: PYNQ Python host benchmarks software-only training and hardware-accelerated training.
 
@@ -31,9 +31,11 @@ pynq/
 
 scripts/
   run_host_smoke_test.py       Local Python validation without board hardware
+  preprocess_marketing_dataset.py Converts an external dataset CSV for accelerator use
 
 data/
-  marketing_campaign_sample.csv Small CSV fixture for host-code testing
+  marketing_campaign_representative.csv Larger representative marketing fixture
+  marketing_campaign_sample.csv         Small CSV fixture for host-code testing
 ```
 
 Generated outputs are intentionally kept out of Git:
@@ -63,6 +65,12 @@ The kernel:
 3. Computes the logistic prediction with a bounded piecewise-linear sigmoid approximation to avoid an expensive exponent unit in the FPGA fabric.
 4. Accumulates gradients across all samples.
 5. Writes the trained weights back to DDR.
+
+The testbench and Python host keep this hardware approximation separate from the true logistic-regression reference:
+
+- true software reference: `1.0 / (1.0 + exp(-z))`
+- approximate software reference: same bounded piecewise-linear sigmoid used by the HLS kernel
+- hardware output: compared directly against the approximate software reference
 
 Build and export the HLS IP:
 
@@ -114,34 +122,42 @@ artifacts/pynq/lr_train_accel.hwh
 
 ## How the PYNQ Host Works
 
-`pynq/lr_pynq_host.py` can run either a synthetic dataset or a CSV dataset. CSV files may use a label column named `label`, `target`, `response`, `converted`, `y`, or `outcome`; otherwise the final column is treated as the label. Numeric columns are normalized, categorical columns are encoded, and the feature set is capped to 29 data columns plus the bias column.
+`pynq/lr_pynq_host.py` can run with a full dataset CSV, the committed representative sample, or an explicit synthetic demo. CSV files may use a label column named `label`, `target`, `response`, `converted`, `y`, or `outcome`; otherwise the final column is treated as the label. Numeric columns are selected, train/eval split is created, training statistics are used for normalization, a bias column is added, and the feature set is capped to 29 data columns plus the bias column.
 
 Software-only validation on the workstation:
 
 ```powershell
 python scripts\run_host_smoke_test.py
-python pynq\lr_pynq_host.py --software-only --csv data\marketing_campaign_sample.csv
+python pynq\lr_pynq_host.py --software-only --mode sample
 ```
 
-Run on the PYNQ board:
+Preprocess an external full Marketing Campaigns dataset:
 
-```bash
-python3 lr_pynq_host.py --bitfile lr_train_accel.bit --csv marketing_campaign_sample.csv
+```powershell
+python scripts\preprocess_marketing_dataset.py path\to\marketing_campaign.csv --output data\marketing_campaign_preprocessed.csv
+python pynq\lr_pynq_host.py --software-only --mode dataset --dataset data\marketing_campaign_preprocessed.csv
 ```
 
-For a board run without a CSV, omit `--csv` and the host will generate a deterministic synthetic logistic-regression dataset:
+Run on the PYNQ board after copying the script, `.bit`, `.hwh`, and dataset to the same board directory:
 
 ```bash
-python3 lr_pynq_host.py --bitfile lr_train_accel.bit
+python3 lr_pynq_host.py --overlay lr_train_accel.bit --mode sample --sample-dataset marketing_campaign_representative.csv
+```
+
+For a board or workstation run using deterministic synthetic data, request it explicitly:
+
+```bash
+python3 lr_pynq_host.py --software-only --mode synthetic
 ```
 
 The host prints:
 
 - sample count, feature count, and iteration count
-- software training time and accuracy
+- true-sigmoid software training time and accuracy
+- approximate software training time and accuracy
 - accelerator setup time and kernel time
 - accelerator accuracy
-- maximum absolute difference between software and accelerator weights
+- max and mean absolute differences for hardware-vs-approximate and approximate-vs-true weights
 - pass/fail status
 
 ## Board Run Checklist
@@ -152,7 +168,7 @@ The host prints:
    artifacts/pynq/lr_train_accel.bit
    artifacts/pynq/lr_train_accel.hwh
    pynq/lr_pynq_host.py
-   data/marketing_campaign_sample.csv
+   data/marketing_campaign_representative.csv
    ```
 
 2. SSH into the board or open a Jupyter terminal.
@@ -160,11 +176,11 @@ The host prints:
 3. Run:
 
    ```bash
-   python3 lr_pynq_host.py --bitfile lr_train_accel.bit --csv marketing_campaign_sample.csv
+   python3 lr_pynq_host.py --overlay lr_train_accel.bit --mode sample --sample-dataset marketing_campaign_representative.csv
    ```
 
-4. Confirm `pass=True` and compare `software_time_s` with `accelerator_kernel_s`.
+4. Confirm `pass=True` for hardware-vs-approximate weights, then review the true-sigmoid comparison metrics separately.
 
 ## Validation Status
 
-Local validation results are recorded in `reports/validation.md`. Board runtime validation requires a PYNQ board with matching `.bit` and `.hwh` files in the same directory as the host script.
+Local validation results are recorded in `reports/validation.md`. See `BUILD.md` for exact reproduction commands and `IMPLEMENTATION_EVIDENCE.md` for concise grading evidence. Board runtime validation requires a PYNQ board with matching `.bit` and `.hwh` files in the same directory as the host script.

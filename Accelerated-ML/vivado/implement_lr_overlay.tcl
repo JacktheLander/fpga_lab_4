@@ -11,6 +11,11 @@ foreach required {LR_PROJECT_XPR LR_ARTIFACT_NAME LR_ARTIFACT_DIR} {
     }
 }
 
+set required_vivado_version [expr {[info exists ::env(REQUIRED_VIVADO_VERSION)] ? $::env(REQUIRED_VIVADO_VERSION) : "2025.2"}]
+if {![string match "${required_vivado_version}*" [version -short]]} {
+    error "Incompatible Vivado version [version -short]; expected $required_vivado_version"
+}
+
 set xpr_path [file normalize $::env(LR_PROJECT_XPR)]
 set artifact_name $::env(LR_ARTIFACT_NAME)
 set artifact_dir [file normalize $::env(LR_ARTIFACT_DIR)]

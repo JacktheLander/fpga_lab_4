@@ -12,6 +12,12 @@ set build_dir [file normalize [file join $project_dir build hls $top_name]]
 set ip_dir [file normalize [file join $project_dir build ip]]
 file mkdir $ip_dir
 
+foreach required_file [list $src_file $tb_file [file join $include_dir lr_config.h]] {
+    if {![file exists $required_file]} {
+        error "Required HLS input file is missing: $required_file"
+    }
+}
+
 open_project -reset $build_dir
 set_top $top_name
 add_files $src_file -cflags "-I$include_dir -std=c++14"
@@ -24,7 +30,11 @@ csim_design -clean
 
 if {!$csim_only} {
     csynth_design
-    export_design -format ip_catalog -output [file join $ip_dir "$top_name.zip"]
+    set ip_archive [file join $ip_dir "$top_name.zip"]
+    export_design -format ip_catalog -output $ip_archive
+    if {![file exists $ip_archive]} {
+        error "HLS IP export did not produce expected archive: $ip_archive"
+    }
 }
 
 exit

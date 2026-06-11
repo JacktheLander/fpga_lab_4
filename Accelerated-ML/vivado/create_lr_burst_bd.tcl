@@ -9,6 +9,11 @@ set project_dir [file dirname $script_dir]
 set part_name [expr {[info exists ::env(PYNQ_PART)] ? $::env(PYNQ_PART) : "xc7z020clg400-1"}]
 set kernel_name [expr {[info exists ::env(LR_KERNEL)] ? $::env(LR_KERNEL) : "lr_train_accel"}]
 set vivado_project_dir [file normalize [file join $project_dir build vivado lr_train_accel]]
+set required_vivado_version [expr {[info exists ::env(REQUIRED_VIVADO_VERSION)] ? $::env(REQUIRED_VIVADO_VERSION) : "2025.2"}]
+
+if {![string match "${required_vivado_version}*" [version -short]]} {
+    error "Incompatible Vivado version [version -short]; expected $required_vivado_version"
+}
 
 proc reconnect_bd_pin {driver_pin sink_pin} {
     set existing_nets [get_bd_nets -quiet -of_objects $sink_pin]
@@ -24,6 +29,9 @@ set_property target_language Verilog [current_project]
 set ip_dirs [glob -nocomplain [file join $project_dir build hls $kernel_name solution1 impl ip]]
 if {[llength $ip_dirs] == 0} {
     error "No exported HLS IP found for $kernel_name. Run hls/build_hls.ps1 first."
+}
+if {![file exists [file join [lindex $ip_dirs 0] component.xml]]} {
+    error "Exported HLS IP is incomplete: missing component.xml in [lindex $ip_dirs 0]"
 }
 set_property ip_repo_paths $ip_dirs [current_project]
 update_ip_catalog
